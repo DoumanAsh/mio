@@ -139,7 +139,6 @@
 use std::io;
 use std::os::windows::prelude::*;
 
-use kernel32;
 use winapi;
 
 mod awakener;
@@ -162,26 +161,23 @@ enum Family {
 
 unsafe fn cancel(socket: &AsRawSocket,
                  overlapped: &Overlapped) -> io::Result<()> {
-    let handle = socket.as_raw_socket() as winapi::HANDLE;
-    let ret = kernel32::CancelIoEx(handle, overlapped.as_mut_ptr());
-    if ret == 0 {
-        Err(io::Error::last_os_error())
-    } else {
-        Ok(())
+    let handle = socket.as_raw_socket() as winapi::um::winnt::HANDLE;
+
+    match winapi::um::ioapiset::CancelIoEx(handle, overlapped.as_mut_ptr()) {
+        0 => Err(io::Error::last_os_error()),
+        _ => Ok(())
     }
 }
 
-unsafe fn no_notify_on_instant_completion(handle: winapi::HANDLE) -> io::Result<()> {
+unsafe fn no_notify_on_instant_completion(handle: winapi::um::winnt::HANDLE) -> io::Result<()> {
     // TODO: move those to winapi
-    const FILE_SKIP_COMPLETION_PORT_ON_SUCCESS: winapi::UCHAR = 1;
-    const FILE_SKIP_SET_EVENT_ON_HANDLE: winapi::UCHAR = 2;
+    const FILE_SKIP_COMPLETION_PORT_ON_SUCCESS: winapi::shared::minwindef::UCHAR = 1;
+    const FILE_SKIP_SET_EVENT_ON_HANDLE: winapi::shared::minwindef::UCHAR = 2;
 
     let flags = FILE_SKIP_COMPLETION_PORT_ON_SUCCESS | FILE_SKIP_SET_EVENT_ON_HANDLE;
 
-    let r = kernel32::SetFileCompletionNotificationModes(handle, flags);
-    if r == winapi::TRUE {
-        Ok(())
-    } else {
-        Err(io::Error::last_os_error())
+    match winapi::um::winbase::SetFileCompletionNotificationModes(handle, flags) {
+        1 => Ok(()),
+        _ => Err(io::Error::last_os_error())
     }
 }
